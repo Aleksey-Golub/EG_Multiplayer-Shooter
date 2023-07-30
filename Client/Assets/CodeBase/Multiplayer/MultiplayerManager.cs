@@ -68,6 +68,7 @@ namespace Assets.CodeBase.Multiplayer
             var position = new Vector3(player.x, 0, player.y);
 
             EnemyController enemy = Instantiate(_enemyPrefab, position, Quaternion.identity);
+            enemy.Initialize();
             player.OnChange += enemy.OnChange;
         }
 
