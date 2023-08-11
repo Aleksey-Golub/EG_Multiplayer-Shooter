@@ -1,10 +1,15 @@
+using Assets.CodeBase.Multiplayer;
+using Colyseus.Schema;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
+using static StringConstants;
 
 namespace Assets.CodeBase.Player
 {
     public class PlayerCharacter : Character
     {
+        [SerializeField] private Health _health;
         [SerializeField] private Transform _head;
         [SerializeField] private Transform _cameraParent;
         [SerializeField] private Rigidbody _rb;
@@ -23,6 +28,9 @@ namespace Assets.CodeBase.Player
         private void Start()
         {
             SetCamera();
+
+            _health.SetMax(MaxHealth);
+            _health.SetCurrent(MaxHealth);
         }
 
         private void FixedUpdate()
@@ -89,6 +97,23 @@ namespace Assets.CodeBase.Player
         {
             Camera.main.transform.parent = _cameraParent;
             Camera.main.transform.localPosition = Vector3.zero;
+            Camera.main.transform.localEulerAngles = Vector3.zero;
+        }
+
+        public void OnPlayerChange(List<DataChange> changes)
+        {
+            foreach (var change in changes)
+            {
+                switch (change.Field)
+                {
+                    case LOSS:
+                        MultiplayerManager.Instance.LossCounter.SetPlayerLoss((byte)change.Value);
+                        break;
+                    case CURRENT_HP:
+                        _health.SetCurrent((sbyte)change.Value);
+                        break;
+                }
+            }
         }
     }
 }

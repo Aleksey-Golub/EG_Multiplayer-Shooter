@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using static StringConstants;
 using System;
+using Assets.CodeBase.Multiplayer;
 
 namespace Assets.CodeBase.Player
 {
@@ -11,22 +12,30 @@ namespace Assets.CodeBase.Player
     {
         [SerializeField] private EnemyCharacter _character;
         [SerializeField] private EnemyGun _gun;
-        
+        private MultiplayerManager _multiplayerManager;
         private Multiplayer.Player _player;
+        private string _sessionId;
         private float _lastOnChageUpdateTime;
         private readonly Queue<float> _onChangeUpdateIntervals = new Queue<float>(new float[] { 0f, 0f, 0f, 0f, 0f });
 
-        public void Init(Multiplayer.Player player)
+        public void Init(Multiplayer.Player player, string currentEnemySessionId)
         {
+            _multiplayerManager = MultiplayerManager.Instance;
+            _sessionId = currentEnemySessionId;
+
             _player = player;
             _player.OnChange += OnPlayerChange;
+            _character.Damaged += OnCharacterDamaged;
             _character.SetSpeed(_player.speed);
+            _character.SetMaxHP(_player.maxHp);
         }
 
         public void DeInit()
         {
             _player.OnChange -= OnPlayerChange;
+            _character.Damaged -= OnCharacterDamaged;
 
+            _multiplayerManager = null;
             Destroy(gameObject);
         }
 
@@ -36,6 +45,17 @@ namespace Assets.CodeBase.Player
             Vector3 velocity = new Vector3(shootInfo.dX, shootInfo.dY, shootInfo.dZ);
 
             _gun.Shoot(position, velocity);
+        }
+
+        private void OnCharacterDamaged(int appliedDamage)
+        {
+            Dictionary<string, object> data = new Dictionary<string, object>()
+            {
+                { ID,               _sessionId},
+                { APPLIED_DAMAGE,   appliedDamage},
+            };
+
+            _multiplayerManager.SendMessage(DAMAGE, data);
         }
 
         private void OnPlayerChange(List<DataChange> changes)
@@ -49,6 +69,13 @@ namespace Assets.CodeBase.Player
             {
                 switch (change.Field)
                 {
+                    case LOSS:
+                        MultiplayerManager.Instance.LossCounter.SetEnemyLoss((byte)change.Value);
+                        break;
+                    case CURRENT_HP:
+                        if ((sbyte)change.Value > (sbyte)change.PreviousValue)
+                            _character.RestoreHp((sbyte)change.Value);
+                        break;
                     case POSITION_X:
                         position.x = (float)change.Value;
                         break;

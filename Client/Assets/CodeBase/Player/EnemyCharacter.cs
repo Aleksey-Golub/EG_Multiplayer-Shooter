@@ -5,13 +5,14 @@ namespace Assets.CodeBase.Player
 {
     public class EnemyCharacter : Character
     {
+        [SerializeField] private Health _health;
         [SerializeField] private Transform _head;
 
         private float _velocityMagnitude;
-        private Vector3 _headRotation;
-        private Vector3 _bodyRotation;
 
         public Vector3 TargetPosition { get; private set; }
+
+        public event Action<int> Damaged;
 
         private void Start()
         {
@@ -21,6 +22,13 @@ namespace Assets.CodeBase.Player
         private void Update()
         {
             Move();
+        }
+
+        public void ApplyDamage(int damage)
+        {
+            _health.ApplyDamage(damage);
+
+            Damaged?.Invoke(damage);
         }
 
         public void SetMovement(in Vector3 position, in Vector3 velocity, in float averageInterval)
@@ -33,6 +41,18 @@ namespace Assets.CodeBase.Player
         public void SetSpeed(float speed)
         {
             Speed = speed;
+        }
+
+        public void SetMaxHP(int value)
+        {
+            MaxHealth = value;
+            _health.SetMax(value);
+            _health.SetCurrent(value);
+        }
+
+        public void RestoreHp(int newValue)
+        {
+            _health.SetCurrent(newValue);
         }
 
         public void SetRotateX(float value)

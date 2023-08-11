@@ -2,6 +2,16 @@ import { Room, Client } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
 
 export class Player extends Schema {
+    // uint8 is byte in c#
+    @type("uint8")
+    loss = 0;
+    
+    // int8 is sbyte in c#
+    @type("int8")
+    maxHp = 0;
+    @type("int8")
+    currentHp = 0;
+
     // max client speed
     @type("number")
     speed = 0;
@@ -38,6 +48,8 @@ export class State extends Schema {
     createPlayer(sessionId: string, options: any) {
         const player = new Player();
         player.speed = options.speed;
+        player.maxHp = options.maxHp;
+        player.currentHp = options.maxHp;
 
         this.players.set(sessionId, player);
     }
@@ -63,7 +75,7 @@ export class State extends Schema {
 }
 
 export class StateHandlerRoom extends Room<State> {
-    maxClients = 4;
+    maxClients = 2;
 
     onCreate (options) {
         console.log("StateHandlerRoom created!", options);
@@ -80,6 +92,35 @@ export class StateHandlerRoom extends Room<State> {
             // send new message to all clents, except `client`
             this.broadcast("Shoot", data, {except: client});
         });
+
+        this.onMessage("damage", (client, data) => {
+            console.log("StateHandlerRoom received `damage` message from", client.sessionId, ":", data);
+            // send new message to all clents, except `client`
+            const damagedClientId = data.id;
+            const player = this.state.players.get(damagedClientId);
+            
+            let hp = player.currentHp - data.appliedDamage;
+
+            if (hp > 0){
+                player.currentHp = hp;
+                return;
+            }
+            else{
+                player.loss++;
+                player.currentHp = player.maxHp;
+
+                const x = Math.floor(Math.random() * 50) - 25;
+                const z = Math.floor(Math.random() * 50) - 25;
+            
+                for (let i = 0; i < this.clients.length; i++) {
+                    if(this.clients[i].id == damagedClientId){
+
+                        const message = JSON.stringify({x, z});
+                        this.clients[i].send("Restart", message);
+                    }                    
+                }
+            }
+        });
     }
 
     onAuth(client, options, req) {
@@ -87,6 +128,10 @@ export class StateHandlerRoom extends Room<State> {
     }
 
     onJoin (client: Client, options: any) {
+        // lock room connection possibility for new client when room is full
+        if (this.clients.length > 1)
+            this.lock();
+
         client.send("hello", "world");
         this.state.createPlayer(client.sessionId, options);
     }

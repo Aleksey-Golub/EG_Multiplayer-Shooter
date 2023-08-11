@@ -1,5 +1,6 @@
 ﻿using Assets.CodeBase.Multiplayer;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using static StringConstants;
@@ -8,11 +9,13 @@ namespace Assets.CodeBase.Player
 {
     public class Controller : MonoBehaviour
     {
+        [SerializeField] private float _restartDelay = 3f;
         [SerializeField] private PlayerCharacter _player;
         [SerializeField] private PlayerGun _gun;
         [SerializeField] private float _mouseSensitivity = 10f;
         
         private MultiplayerManager _multiplayerManager;
+        private bool _hold = false;
 
         private void Start()
         {
@@ -21,6 +24,9 @@ namespace Assets.CodeBase.Player
 
         private void Update()
         {
+            if (_hold)
+                return;
+
             float h = Input.GetAxisRaw("Horizontal");
             float v = Input.GetAxisRaw("Vertical");
 
@@ -40,11 +46,41 @@ namespace Assets.CodeBase.Player
             SendMove();
         }
 
+        public void Restart(string jsonRestartInfo)
+        {
+            var restartInfo = JsonUtility.FromJson<RestartInfo>(jsonRestartInfo);
+            StartCoroutine(Hold());
+
+            _player.transform.position = new Vector3(restartInfo.x, 0f, restartInfo.z);
+            _player.SetInput(0, 0, 0);
+
+            Dictionary<string, object> data = new Dictionary<string, object>()
+            {
+                { POSITION_X, restartInfo.x},
+                { POSITION_Y, 0},
+                { POSITION_Z, restartInfo.z},
+                { VELOCITY_X, 0},
+                { VELOCITY_Y, 0},
+                { VELOCITY_Z, 0},
+                { ROTATE_X, 0},
+                { ROTATE_Y, 0},
+            };
+
+            _multiplayerManager.SendMessage(MOVE, data);
+        }
+
+        private IEnumerator Hold()
+        {
+            _hold = true;
+            yield return new WaitForSecondsRealtime(_restartDelay);
+            _hold = false;
+        }
+
         private void SendShoot(ref ShootInfo shootInfo)
         {
             shootInfo.key = _multiplayerManager.GetClientSessionId();
             string data = JsonUtility.ToJson(shootInfo);
-            _multiplayerManager.SendMessage("shoot", data);
+            _multiplayerManager.SendMessage(SHOOT, data);
         }
 
         private void SendMove()
@@ -62,11 +98,11 @@ namespace Assets.CodeBase.Player
                 { ROTATE_Y, rotateY},
             };
 
-            _multiplayerManager.SendMessage("move", data);
+            _multiplayerManager.SendMessage(MOVE, data);
         }
     }
 
-    [System.Serializable]
+    [Serializable]
     public struct ShootInfo
     {
         public string key;
@@ -78,5 +114,12 @@ namespace Assets.CodeBase.Player
         public float dX;
         public float dY;
         public float dZ;
+    }
+
+    [Serializable]
+    public struct RestartInfo
+    {
+        public float x;
+        public float z;
     }
 }

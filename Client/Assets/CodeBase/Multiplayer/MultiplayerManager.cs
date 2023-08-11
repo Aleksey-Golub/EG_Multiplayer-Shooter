@@ -1,13 +1,14 @@
 using Assets.CodeBase.Player;
 using Colyseus;
-using System;
 using System.Collections.Generic;
 using UnityEngine;
+using static StringConstants;
 
 namespace Assets.CodeBase.Multiplayer
 {
     public class MultiplayerManager : ColyseusManager<MultiplayerManager>
     {
+        [field: SerializeField] public LossCounter LossCounter { get; private set; }
         [SerializeField] private PlayerCharacter _playerPrefab;
         [SerializeField] private EnemyController _enemyPrefab;
 
@@ -19,6 +20,9 @@ namespace Assets.CodeBase.Multiplayer
 
             Instance.InitializeClient();
             Connect();
+
+            //Cursor.visible = false;
+            //Cursor.lockState = CursorLockMode.Locked;
         }
 
         protected override void OnDestroy()
@@ -47,13 +51,14 @@ namespace Assets.CodeBase.Multiplayer
         {
             Dictionary<string, object> options = new Dictionary<string, object>()
             {
-                { "speed", _playerPrefab.Speed}
+                { SPEED, _playerPrefab.Speed},
+                { MAX_HP, _playerPrefab.MaxHealth},
             };
 
             _room = await Instance.client.JoinOrCreate<State>("state_handler", options);
 
             _room.OnStateChange += OnStateChange;
-            _room.OnMessage<string>("Shoot", ReceiveShootInfo);
+            _room.OnMessage<string>(SHOOT_FORM_SERVER, ReceiveShootInfo);
         }
 
         private void ReceiveShootInfo(string json)
@@ -73,26 +78,29 @@ namespace Assets.CodeBase.Multiplayer
 
         private void OnStateChange(State state, bool isFirstState)
         {
-            if (isFirstState == false)
-                return;
+            if (isFirstState)
+            {
+                state.players.ForEach((key, player) => {
 
-            state.players.ForEach((key, player) => {
+                    if (key == _room.SessionId)
+                        CreatePlayer(player);
+                    else
+                        CreateEnemy(key, player);
+                });
 
-                if (key == _room.SessionId)
-                    CreatePlayer(player);
-                else
-                    CreateEnemy(key, player);
-            });
-
-            _room.State.players.OnAdd += CreateEnemy;
-            _room.State.players.OnRemove += RemoveEnemy;
+                _room.State.players.OnAdd += CreateEnemy;
+                _room.State.players.OnRemove += RemoveEnemy;
+            }
         }
 
         private void CreatePlayer(Player player)
         {
             var position = new Vector3(player.pX, player.pY, player.pZ);
 
-            Instantiate(_playerPrefab, position, Quaternion.identity);
+            var playerCharacter = Instantiate(_playerPrefab, position, Quaternion.identity);
+            player.OnChange += playerCharacter.OnPlayerChange;
+
+            _room.OnMessage<string>(RESTART, playerCharacter.GetComponent<Controller>().Restart);
         }
 
         private readonly Dictionary<string, EnemyController> _enemies = new();
@@ -101,7 +109,7 @@ namespace Assets.CodeBase.Multiplayer
             var position = new Vector3(player.pX, player.pY, player.pZ);
 
             EnemyController enemy = Instantiate(_enemyPrefab, position, Quaternion.identity);
-            enemy.Init(player);
+            enemy.Init(player, key);
             _enemies.Add(key, enemy);
         }
 

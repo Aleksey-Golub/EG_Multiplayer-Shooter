@@ -8,6 +8,7 @@ namespace Assets.CodeBase.Player
         [SerializeField] private Transform _shootPoint;
         [SerializeField] private float _bulletSpeed = 1f;
         [SerializeField] private float _shootDelay = 0.5f;
+        [SerializeField] private int _damage = 1;
 
         private float _lastShootTime;
 
@@ -23,7 +24,7 @@ namespace Assets.CodeBase.Player
 
             _lastShootTime = Time.time;
             Bullet bullet = Instantiate(_bulletPrefab, position, _shootPoint.rotation);
-            bullet.Init(velocity);
+            bullet.Init(velocity, _damage);
 
             InvokeShootHappened();
 
