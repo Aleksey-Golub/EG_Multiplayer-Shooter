@@ -2,6 +2,9 @@ import { Room, Client } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
 
 export class Player extends Schema {
+    @type("uint8")
+    skin = 0;
+
     // uint8 is byte in c#
     @type("uint8")
     loss = 0;
@@ -18,11 +21,11 @@ export class Player extends Schema {
 
     // p - position
     @type("number")
-    pX = Math.floor(Math.random() * 50) - 25;
+    pX = 0;
     @type("number")
     pY = 0;
     @type("number")
-    pZ = Math.floor(Math.random() * 50) - 25;
+    pZ = 0;
     
     // v - velocity
     @type("number")
@@ -45,11 +48,16 @@ export class State extends Schema {
 
     something = "This attribute won't be sent to the client-side";
 
-    createPlayer(sessionId: string, options: any) {
+    createPlayer(sessionId: string, options: any, skin: number) {
         const player = new Player();
+        player.skin = skin;
         player.speed = options.speed;
         player.maxHp = options.maxHp;
         player.currentHp = options.maxHp;
+        player.pX = options.pX;
+        player.pY = options.pY;
+        player.pZ = options.pZ;
+        player.rY = options.rY;
 
         this.players.set(sessionId, player);
     }
@@ -76,11 +84,36 @@ export class State extends Schema {
 
 export class StateHandlerRoom extends Room<State> {
     maxClients = 2;
+    spawnPointsCount = 1;
+    skins: number[] = [0];
+
+    mixArray(array){
+        let currentIndex = array.length,  randomIndex;
+
+        // While there remain elements to shuffle.
+        while (currentIndex != 0) {
+    
+        // Pick a remaining element.
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+    
+        // And swap it with the current element.
+        [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]];
+    }
+  
+    return array;
+    }
 
     onCreate (options) {
         console.log("StateHandlerRoom created!", options);
 
         this.setState(new State());
+        this.spawnPointsCount = options.spCount;
+        for (var i = 0; i < options.skinsCount; i++){
+            this.skins.push(i);
+        }
+        this.mixArray(this.skins);
 
         this.onMessage("move", (client, data) => {
             console.log("StateHandlerRoom received `move` message from", client.sessionId, ":", data);
@@ -109,14 +142,11 @@ export class StateHandlerRoom extends Room<State> {
                 player.loss++;
                 player.currentHp = player.maxHp;
 
-                const x = Math.floor(Math.random() * 50) - 25;
-                const z = Math.floor(Math.random() * 50) - 25;
-            
                 for (let i = 0; i < this.clients.length; i++) {
-                    if(this.clients[i].id == damagedClientId){
-
-                        const message = JSON.stringify({x, z});
-                        this.clients[i].send("Restart", message);
+                    if (this.clients[i].id == damagedClientId){
+                        
+                        const point = Math.floor(Math.random() * this.spawnPointsCount);
+                        this.clients[i].send("Restart", point);
                     }                    
                 }
             }
@@ -133,7 +163,9 @@ export class StateHandlerRoom extends Room<State> {
             this.lock();
 
         client.send("hello", "world");
-        this.state.createPlayer(client.sessionId, options);
+
+        const skin = this.skins[this.clients.length - 1];
+        this.state.createPlayer(client.sessionId, options, skin);
     }
 
     onLeave (client) {

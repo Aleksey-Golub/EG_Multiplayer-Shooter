@@ -16,24 +16,43 @@ namespace Assets.CodeBase.Player
         
         private MultiplayerManager _multiplayerManager;
         private bool _hold = false;
+        private bool _hideCursor;
 
         private void Start()
         {
             _multiplayerManager = MultiplayerManager.Instance;
+
+            _hideCursor = true;
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
         }
 
         private void Update()
         {
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                _hideCursor = !_hideCursor;
+                Cursor.lockState = _hideCursor ? CursorLockMode.Locked : CursorLockMode.None;
+                Cursor.visible = !_hideCursor;
+            }
+
             if (_hold)
                 return;
 
             float h = Input.GetAxisRaw("Horizontal");
             float v = Input.GetAxisRaw("Vertical");
+            float mouseX = 0;
+            float mouseY = 0;
+            bool isShoot = false;
 
-            float mouseX = Input.GetAxisRaw("Mouse X");
-            float mouseY = Input.GetAxisRaw("Mouse Y");
+            if (_hideCursor)
+            {
+                mouseX = Input.GetAxisRaw("Mouse X");
+                mouseY = Input.GetAxisRaw("Mouse Y");
+                isShoot = Input.GetKey(KeyCode.Mouse0);
+            }
+
             bool isJump = Input.GetKeyDown(KeyCode.Space);
-            bool isShoot = Input.GetKey(KeyCode.Mouse0);
             
             _player.SetInput(h, v, mouseX * _mouseSensitivity);
             _player.RotateX(-mouseY * _mouseSensitivity);
@@ -46,24 +65,27 @@ namespace Assets.CodeBase.Player
             SendMove();
         }
 
-        public void Restart(string jsonRestartInfo)
+        public void Restart(int spawnIndex)
         {
-            var restartInfo = JsonUtility.FromJson<RestartInfo>(jsonRestartInfo);
+            _multiplayerManager.SpawnPoints.GetPoint(spawnIndex, out Vector3 respawnPosition, out Vector3 respawnRotation);
             StartCoroutine(Hold());
 
-            _player.transform.position = new Vector3(restartInfo.x, 0f, restartInfo.z);
+            _player.transform.position = respawnPosition;
+            respawnRotation.x = 0;
+            respawnRotation.z = 0;
+            _player.transform.eulerAngles = respawnRotation;
             _player.SetInput(0, 0, 0);
 
             Dictionary<string, object> data = new Dictionary<string, object>()
             {
-                { POSITION_X, restartInfo.x},
-                { POSITION_Y, 0},
-                { POSITION_Z, restartInfo.z},
+                { POSITION_X, respawnPosition.x},
+                { POSITION_Y, respawnPosition.y},
+                { POSITION_Z, respawnPosition.z},
                 { VELOCITY_X, 0},
                 { VELOCITY_Y, 0},
                 { VELOCITY_Z, 0},
-                { ROTATE_X, 0},
-                { ROTATE_Y, 0},
+                { ROTATION_X, 0},
+                { ROTATION_Y, respawnRotation.y},
             };
 
             _multiplayerManager.SendMessage(MOVE, data);
@@ -94,8 +116,8 @@ namespace Assets.CodeBase.Player
                 { VELOCITY_X, velocity.x},    
                 { VELOCITY_Y, velocity.y},
                 { VELOCITY_Z, velocity.z},
-                { ROTATE_X, rotateX},
-                { ROTATE_Y, rotateY},
+                { ROTATION_X, rotateX},
+                { ROTATION_Y, rotateY},
             };
 
             _multiplayerManager.SendMessage(MOVE, data);
@@ -114,12 +136,5 @@ namespace Assets.CodeBase.Player
         public float dX;
         public float dY;
         public float dZ;
-    }
-
-    [Serializable]
-    public struct RestartInfo
-    {
-        public float x;
-        public float z;
     }
 }

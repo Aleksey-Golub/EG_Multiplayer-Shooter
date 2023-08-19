@@ -94,10 +94,10 @@ namespace Assets.CodeBase.Player
                     case VELOCITY_Z:
                         velocity.z = (float)change.Value;
                         break;
-                    case ROTATE_X:
+                    case ROTATION_X:
                         _character.SetRotateX((float)change.Value);
                         break;
-                    case ROTATE_Y:
+                    case ROTATION_Y:
                         _character.SetRotateY((float)change.Value);
                         break;
                     default:

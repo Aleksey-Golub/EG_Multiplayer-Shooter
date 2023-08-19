@@ -9,10 +9,13 @@ namespace Assets.CodeBase.Multiplayer
     public class MultiplayerManager : ColyseusManager<MultiplayerManager>
     {
         [field: SerializeField] public LossCounter LossCounter { get; private set; }
+        [field: SerializeField] public SpawnPoints SpawnPoints { get; private set; }
+        [SerializeField] public Skins _skins;
         [SerializeField] private PlayerCharacter _playerPrefab;
         [SerializeField] private EnemyController _enemyPrefab;
 
         private ColyseusRoom<State> _room;
+        private readonly Dictionary<string, EnemyController> _enemies = new();
 
         protected override void Awake()
         {
@@ -20,9 +23,6 @@ namespace Assets.CodeBase.Multiplayer
 
             Instance.InitializeClient();
             Connect();
-
-            //Cursor.visible = false;
-            //Cursor.lockState = CursorLockMode.Locked;
         }
 
         protected override void OnDestroy()
@@ -49,10 +49,18 @@ namespace Assets.CodeBase.Multiplayer
 
         private async void Connect()
         {
+            SpawnPoints.GetPoint(Random.Range(0, SpawnPoints.Count), out Vector3 spawnPosition, out Vector3 spawnRotation);
+
             Dictionary<string, object> options = new Dictionary<string, object>()
             {
+                { SKINS_COUNT, _skins.Count},
+                { SPAWN_POINTS_COUNT, SpawnPoints.Count},
                 { SPEED, _playerPrefab.Speed},
                 { MAX_HP, _playerPrefab.MaxHealth},
+                { SPAWN_POSITION_X, spawnPosition.x},
+                { SPAWN_POSITION_Y, spawnPosition.y},
+                { SPAWN_POSITION_Z, spawnPosition.z},
+                { SPAWN_ROTATION_Y, spawnRotation.y},
             };
 
             _room = await Instance.client.JoinOrCreate<State>("state_handler", options);
@@ -96,20 +104,24 @@ namespace Assets.CodeBase.Multiplayer
         private void CreatePlayer(Player player)
         {
             var position = new Vector3(player.pX, player.pY, player.pZ);
+            var rotation = Quaternion.Euler(0, player.rY, 0);
 
-            var playerCharacter = Instantiate(_playerPrefab, position, Quaternion.identity);
+            var playerCharacter = Instantiate(_playerPrefab, position, rotation);
             player.OnChange += playerCharacter.OnPlayerChange;
 
-            _room.OnMessage<string>(RESTART, playerCharacter.GetComponent<Controller>().Restart);
+            _room.OnMessage<int>(RESTART, playerCharacter.GetComponent<Controller>().Restart);
+
+            playerCharacter.GetComponent<SetSkin>().Set(_skins.GetMaterial(player.skin));
         }
 
-        private readonly Dictionary<string, EnemyController> _enemies = new();
         private void CreateEnemy(string key, Player player)
         {
             var position = new Vector3(player.pX, player.pY, player.pZ);
 
             EnemyController enemy = Instantiate(_enemyPrefab, position, Quaternion.identity);
             enemy.Init(player, key);
+            enemy.GetComponent<SetSkin>().Set(_skins.GetMaterial(player.skin));
+
             _enemies.Add(key, enemy);
         }
 

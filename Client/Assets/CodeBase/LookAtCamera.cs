@@ -11,7 +11,7 @@ namespace Assets.CodeBase
             _camera = Camera.main.transform;
         }
 
-        private void Update()
+        private void LateUpdate()
         {
             transform.LookAt(_camera);
         }
